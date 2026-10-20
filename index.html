@@ -1,0 +1,1962 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema Soberano — Cofre Blindado</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --bg-fallback: #090d16;
+      --card-fallback: #111827;
+      --content-fallback: #1e293b;
+      --border-fallback: #334155;
+      --fg-fallback: #f8fafc;
+      --muted-fallback: #94a3b8;
+    }
+    body {
+      background-color: var(--background, var(--bg-fallback));
+      color: var(--foreground, var(--fg-fallback));
+    }
+    .sys-card {
+      background-color: var(--card, var(--card-fallback));
+      border-color: var(--border, var(--border-fallback));
+    }
+    .sys-content {
+      background-color: var(--content, var(--content-fallback));
+      border-color: var(--border, var(--border-fallback));
+    }
+    .sys-muted {
+      color: var(--muted-foreground, var(--muted-fallback));
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(8px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    .system-glow {
+      box-shadow: 0 0 22px rgba(6, 182, 212, 0.14), inset 0 0 12px rgba(6, 182, 212, 0.06);
+    }
+    .gold-glow {
+      box-shadow: 0 0 24px rgba(245, 158, 11, 0.22), inset 0 0 12px rgba(245, 158, 11, 0.08);
+    }
+    .danger-glow {
+      box-shadow: 0 0 18px rgba(239, 68, 68, 0.22), inset 0 0 10px rgba(239, 68, 68, 0.08);
+    }
+    .animate-float {
+      animation: floatUp 0.35s ease-out forwards;
+    }
+    .pulse-indicator {
+      animation: pulseGlow 2s infinite;
+    }
+  </style>
+</head>
+<body class="antialiased p-4 md:p-6 select-none min-h-screen">
+
+  <!-- ESCUDO DO MODO BLINDADO (TELA DE BLOQUEIO PARA ESTRANHOS) -->
+  <div id="vaultLockOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4">
+    <div class="sys-card border-2 border-cyan-500/60 rounded-2xl max-w-md w-full p-6 text-center system-glow animate-float space-y-4">
+      <div class="inline-block px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold tracking-widest uppercase">
+        [ MODO BLINDADO • COFRE PRIVADO ]
+      </div>
+      <div class="text-4xl">🔒</div>
+      <h2 class="text-xl font-extrabold tracking-tight">Acesso Restrito ao Soberano</h2>
+      <p class="text-xs sys-muted leading-relaxed">
+        Nenhum dado financeiro é armazenado no código público. Todos os saldos, metas e relatórios residem em um <strong>Cofre Privado</strong> e exigem sua chave de autenticação para descriptografia e leitura.
+      </p>
+      <div class="text-left space-y-2 pt-2">
+        <label class="block text-xs font-semibold sys-muted">Chave de Acesso do Jogador (Token GitHub):</label>
+        <input id="lockScreenTokenInput" type="password" placeholder="Cole sua chave gho_... (Ctrl + V)" class="w-full sys-content border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:border-cyan-400" />
+        <p id="lockScreenErrorMsg" class="hidden text-xs text-rose-400 font-semibold"></p>
+      </div>
+      <button onclick="unlockWithToken()" id="btnUnlockVault" class="w-full py-2.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs transition cursor-pointer">
+        🔓 Destrancar Cofre Privado
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL DE LEVEL UP -->
+  <div id="levelUpModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="sys-card border-2 border-amber-400 rounded-2xl max-w-md w-full p-6 text-center gold-glow animate-float">
+      <div class="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-400/40 text-xs font-bold tracking-widest uppercase mb-3">
+        [ Notificação do Sistema ]
+      </div>
+      <h2 class="text-2xl font-extrabold tracking-tight text-amber-400 mb-1">⚡ LEVEL UP! ⚡</h2>
+      <p id="levelUpSubtitle" class="text-lg font-bold mb-3">Novo Nível Alcançado!</p>
+      <div class="sys-content border rounded-xl p-4 text-left space-y-2 mb-5 text-sm">
+        <div class="flex justify-between">
+          <span class="sys-muted">Novo Patrimônio Total:</span>
+          <span id="levelUpGold" class="font-mono font-bold text-emerald-400">R$ 0,00</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="sys-muted">Nova Regeneração Passiva:</span>
+          <span id="levelUpYield" class="font-mono font-bold text-cyan-400">+R$ 0,00 / mês</span>
+        </div>
+      </div>
+      <button onclick="closeLevelUpModal()" class="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition cursor-pointer">
+        Confirmar Evolução
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL SINCRONIZAÇÃO NUVEM GITHUB (COFRE PRIVADO) -->
+  <div id="cloudModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="sys-card border border-purple-500/50 rounded-2xl max-w-md w-full p-6 system-glow animate-float">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+        <div>
+          <span class="text-xs font-mono uppercase text-purple-400 font-bold">[ MODO BLINDADO • COFRE PRIVADO ]</span>
+          <h3 class="text-lg font-bold">Sincronização Segura GitHub</h3>
+        </div>
+        <button onclick="closeCloudModal()" class="text-sm sys-muted hover:text-white px-2 py-1 cursor-pointer">✕</button>
+      </div>
+      <div class="space-y-3 mt-4 text-xs">
+        <p class="sys-muted">
+          Cofre Privado Conectado: <strong class="text-emerald-400 font-mono">🔒 isekai-cofre-privado (100% Privado)</strong>
+        </p>
+        <p class="sys-muted">
+          Seus dados ficam armazenados exclusivamente no repositório privado da sua conta. Apenas dispositivos com a sua chave conseguem ler ou gravar valores.
+        </p>
+        <div>
+          <label class="block font-semibold sys-muted mb-1">Chave de Sincronização GitHub (Token):</label>
+          <input id="cloudTokenInput" type="password" placeholder="gho_... ou ghp_..." class="w-full sys-content border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-purple-400" />
+        </div>
+      </div>
+      <div class="flex flex-wrap justify-between items-center gap-2 mt-6">
+        <div class="flex gap-1.5">
+          <button onclick="pullFromGitHubCloud()" class="px-3 py-2 rounded-xl sys-content border text-xs font-semibold cursor-pointer hover:opacity-85">
+            🔄 Recarregar Cofre
+          </button>
+          <button onclick="lockVaultSession()" class="px-3 py-2 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-semibold cursor-pointer hover:bg-rose-500/30" title="Remover chave deste navegador e trancar tela">
+            🔒 Trancar
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="closeCloudModal()" class="px-3 py-2 rounded-xl sys-content border text-xs font-bold cursor-pointer">
+            Fechar
+          </button>
+          <button onclick="saveCloudToken()" class="px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-400 text-black text-xs font-bold cursor-pointer">
+            ☁️ Conectar e Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL REGISTRAR APORTE / EDITAR SALDO -->
+  <div id="depositModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="sys-card border border-cyan-500/50 rounded-2xl max-w-lg w-full p-6 system-glow animate-float">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+        <div>
+          <span class="text-xs font-mono uppercase text-cyan-400 font-bold">[ OPERAÇÃO DO SISTEMA ]</span>
+          <h3 id="modalTitle" class="text-lg font-bold">Registrar Aporte ou Atualizar Saldo</h3>
+        </div>
+        <button onclick="closeDepositModal()" class="text-sm sys-muted hover:text-white px-2 py-1 cursor-pointer">✕</button>
+      </div>
+
+      <div class="space-y-4 mt-4 text-sm">
+        <div>
+          <label class="block text-xs font-semibold sys-muted mb-1">Escolha a Conta / Equipamento:</label>
+          <select id="modalAccountSelect" onchange="onModalAccountChange()" class="w-full sys-content border rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-cyan-400"></select>
+          <p id="modalAccountHint" class="text-xs text-cyan-400 font-mono mt-1"></p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold sys-muted mb-1">Tipo de Operação:</label>
+            <select id="modalOpType" onchange="onModalAccountChange()" class="w-full sys-content border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-cyan-400">
+              <option value="add">➕ Somar Aporte / Juros</option>
+              <option value="set">✏️ Definir Saldo Exato Atual</option>
+            </select>
+          </div>
+          <div>
+            <label id="modalAmountLabel" class="block text-xs font-semibold sys-muted mb-1">Valor a Somar (R$):</label>
+            <input id="modalAmountInput" type="number" step="0.01" placeholder="Ex: 1000.00" class="w-full sys-content border rounded-xl px-3 py-2 text-sm font-mono font-bold focus:outline-none focus:border-cyan-400" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-700/50">
+          <div>
+            <label class="block text-xs font-semibold sys-muted mb-1">Taxa Principal (% do CDI):</label>
+            <input id="modalRateGoodInput" type="number" step="0.5" class="w-full sys-content border rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-cyan-400" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold sys-muted mb-1">Teto da Taxa Turbo (R$):</label>
+            <input id="modalCapInput" type="number" step="100" class="w-full sys-content border rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-cyan-400" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold sys-muted mb-1">Nota no Log de Evolução (Opcional):</label>
+          <input id="modalNoteInput" type="text" placeholder="Ex: Aporte do mês + rendimento" class="w-full sys-content border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-cyan-400" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeDepositModal()" class="px-4 py-2 rounded-xl sys-content border text-xs font-bold cursor-pointer">
+          Cancelar
+        </button>
+        <button onclick="confirmAccountUpdate()" class="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold cursor-pointer transition">
+          💾 Salvar no Cofre Privado
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTEÚDO PRINCIPAL DO DASHBOARD (SÓ EXIBIDO APÓS DESTRANCAR COFRE) -->
+  <div id="dashboardMainContainer" class="max-w-6xl mx-auto space-y-5 blur-md pointer-events-none transition duration-300">
+
+    <!-- 1. BANNER DINÂMICO DE ALERTA DO SISTEMA -->
+    <div id="systemAlertBox" class="sys-card border-l-4 border-amber-500 border rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 system-glow">
+      <div class="flex items-start gap-3">
+        <span id="systemAlertTag" class="px-2.5 py-1 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-mono text-xs font-bold uppercase shrink-0 mt-0.5">
+          [SISTEMA • ALERTA]
+        </span>
+        <div>
+          <p id="systemAlertTitle" class="font-semibold text-sm">Cofre Blindado Trancado</p>
+          <p id="systemAlertDesc" class="text-xs sys-muted mt-0.5">Autentique sua chave para carregar seus dados privados.</p>
+        </div>
+      </div>
+      <button id="btnFixDebuff" onclick="fixAllDebuffs()" class="hidden shrink-0 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition cursor-pointer">
+        ⚡ Drenar Excedente p/ 105% CDI
+      </button>
+    </div>
+
+    <!-- 2. JANELA DE STATUS PRINCIPAL DO JOGADOR -->
+    <div class="sys-card border border-cyan-500/40 rounded-2xl p-5 system-glow">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-700/60">
+        <div class="space-y-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-mono text-xs font-bold tracking-wider uppercase">
+              STATUS DO JOGADOR
+            </span>
+            <span id="playerClassBadge" class="px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
+              🔒 Cofre Privado
+            </span>
+            <button onclick="openCloudModal()" id="syncStatusBadge" class="px-2.5 py-0.5 rounded-md bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-xs font-mono cursor-pointer transition">
+              🔒 Cofre Trancado
+            </button>
+          </div>
+          <h1 class="text-xl md:text-2xl font-extrabold tracking-tight mt-1">
+            <span id="playerNameDisplay">Jogador</span> • <span id="playerLevelText" class="text-cyan-400 font-mono">NÍVEL --</span>
+          </h1>
+          <p class="text-xs sys-muted">
+            Regra do Sistema: <span class="font-mono text-white">Cada R$ 1.000,00 = 1 Nível</span> • <span class="font-mono text-white">R$ 1,00 = 1 XP</span>
+          </p>
+        </div>
+
+        <!-- Botões de Ação Principal -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openDepositModal('', 'add')" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition cursor-pointer">
+            💰 + Registrar Aporte / Juros
+          </button>
+          <button onclick="openDepositModal('', 'set')" class="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-semibold text-xs transition cursor-pointer">
+            ✏️ Atualizar Saldos
+          </button>
+          <button onclick="openCloudModal()" class="px-3 py-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-xs font-semibold transition cursor-pointer">
+            🔒 Cofre Nuvem
+          </button>
+          <button onclick="exportBackupJSON()" class="px-3 py-2 rounded-xl sys-content border text-xs font-semibold hover:opacity-85 transition cursor-pointer" title="Baixar arquivo de backup .json">
+            📥 Backup
+          </button>
+          <label class="px-3 py-2 rounded-xl sys-content border text-xs font-semibold hover:opacity-85 transition cursor-pointer" title="Carregar arquivo de backup .json">
+            📤 Importar
+            <input type="file" accept=".json" onchange="importBackupJSON(event)" class="hidden" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Barra de XP para o Próximo Nível -->
+      <div class="mt-4 sys-content border rounded-xl p-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">Barra de Experiência (Próximo Nível)</span>
+            <span id="nextLevelBadge" class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-mono text-xs font-semibold">
+              Rumo ao próximo nível
+            </span>
+          </div>
+          <div class="font-mono text-sm font-bold">
+            <span id="currentLevelXp" class="text-cyan-400">0,00</span> / 1.000,00 XP
+            <span id="xpPercentText" class="text-xs sys-muted ml-1">(0%)</span>
+          </div>
+        </div>
+        <div class="w-full h-4 bg-black/40 rounded-full overflow-hidden border border-cyan-500/30 p-0.5">
+          <div id="xpProgressBar" class="h-full rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between text-xs sys-muted mt-2 gap-1">
+          <span id="xpRemainingText"></span>
+          <span id="xpTimeEstimateText"></span>
+        </div>
+      </div>
+
+      <!-- 4 Cards de Atributos Principais -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+        <div class="sys-content border rounded-xl p-3.5">
+          <div class="flex items-center justify-between text-xs sys-muted mb-1">
+            <span>💰 OURO TOTAL (PATRIMÔNIO)</span>
+            <span id="avgCdiPercentBadge" class="font-mono text-emerald-400 font-semibold">--% CDI</span>
+          </div>
+          <div id="totalPatrimonyDisplay" class="text-xl font-extrabold font-mono">
+            R$ ••••••
+          </div>
+          <div class="text-xs sys-muted mt-1">
+            Distância p/ Lv. 50: <span id="to50kDisplay" class="font-mono text-amber-400 font-semibold">R$ •••</span>
+          </div>
+        </div>
+
+        <div class="sys-content border rounded-xl p-3.5">
+          <div class="flex items-center justify-between text-xs sys-muted mb-1">
+            <span>🛡️ HP (RESERVA SAGRADA)</span>
+            <span class="text-emerald-400 font-bold">PROTEGIDO</span>
+          </div>
+          <div class="text-xl font-extrabold font-mono text-emerald-400">
+            R$ 10.000,00
+          </div>
+          <div class="text-xs sys-muted mt-1">
+            Proteção Intocável + Liquidez 24/7
+          </div>
+        </div>
+
+        <div class="sys-content border rounded-xl p-3.5">
+          <div class="flex items-center justify-between text-xs sys-muted mb-1">
+            <span>⚡ REGEN. PASSIVA (LÍQUIDO)</span>
+            <span id="cdiHeaderBadge" class="font-mono text-cyan-400">CDI --%</span>
+          </div>
+          <div id="monthlyYieldDisplay" class="text-xl font-extrabold font-mono text-cyan-400">
+            +R$ •••<span class="text-xs font-normal sys-muted">/mês</span>
+          </div>
+          <div class="text-xs sys-muted mt-1">
+            <span id="dailyYieldDisplay" class="font-mono text-white font-semibold">+R$ •••</span> por dia útil
+          </div>
+        </div>
+
+        <div class="sys-content border border-cyan-500/30 rounded-xl p-3.5">
+          <div class="flex items-center justify-between text-xs sys-muted mb-1">
+            <span class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-indicator"></span>
+              FARM PASSIVO HOJE
+            </span>
+            <span class="font-mono text-xs text-emerald-400">ATIVO</span>
+          </div>
+          <div id="liveFarmTicker" class="text-xl font-extrabold font-mono text-amber-400">
+            +R$ 15,8842
+          </div>
+          <div class="text-xs sys-muted mt-1">
+            Ganhando <span id="hourlyYieldDisplay" class="font-mono text-white">+R$ •••/hora</span> útil sem trabalhar
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. NAVEGAÇÃO POR ABAS DO SISTEMA -->
+    <div class="flex flex-wrap gap-2 border-b border-slate-700/60 pb-2">
+      <button onclick="switchTab('marcos')" id="tabBtn-marcos" class="tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer bg-cyan-500 text-black">
+        🏆 1. Pequenos Marcos de Valor
+      </button>
+      <button onclick="switchTab('quests')" id="tabBtn-quests" class="tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer sys-card sys-muted border">
+        🗺️ 2. Main Quests (Imóvel & Construção)
+      </button>
+      <button onclick="switchTab('inventario')" id="tabBtn-inventario" class="tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer sys-card sys-muted border">
+        ⚔️ 3. Inventário de Contas (Tetos CDI)
+      </button>
+      <button onclick="switchTab('tempo')" id="tabBtn-tempo" class="tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer sys-card sys-muted border">
+        ⏳ 4. Marcos de Tempo & Missões Mensais
+      </button>
+      <button onclick="switchTab('analise')" id="tabBtn-analise" class="tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer sys-card text-amber-300 border border-amber-500/40">
+        📜 5. Análise Semanal (Relatório Geral)
+      </button>
+      <button onclick="switchTab('arbitragem')" id="tabBtn-arbitragem" class="tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer sys-card text-emerald-300 border border-emerald-500/40">
+        ⚖️ 6. Arbitragem MCMV vs. CDI
+      </button>
+    </div>
+
+    <!-- ABA 1: PEQUENOS MARCOS DE VALOR -->
+    <div id="tab-marcos" class="tab-panel grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div class="lg:col-span-7 sys-card border rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-mono uppercase text-cyan-400 font-bold">[ HABILIDADES PASSIVAS DESBLOQUEADAS ]</span>
+            <h2 class="text-lg font-bold">O Que os Seus Juros Já Pagam Sozinhos</h2>
+            <p class="text-xs sys-muted">
+              Cada degrau vencido significa uma despesa real da sua vida derrotada permanentemente pelos juros compostos.
+            </p>
+          </div>
+        </div>
+        <div id="buffLadderContainer" class="space-y-2.5"></div>
+      </div>
+
+      <div class="lg:col-span-5 space-y-5">
+        <div class="sys-card border rounded-2xl p-5 space-y-3">
+          <span class="text-xs font-mono uppercase text-cyan-400 font-bold">[ PRÓXIMOS CHECKPOINTS DE VALOR ]</span>
+          <h3 class="text-base font-bold">Metas de Curto Prazo (Degrau por Degrau)</h3>
+          <div id="shortMilestonesList" class="space-y-2 text-xs"></div>
+        </div>
+
+        <div class="sys-card border rounded-2xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono uppercase text-emerald-400 font-bold">[ DIÁRIO DE BORDO DO SISTEMA ]</span>
+            <span class="text-xs sys-muted font-mono">Cofre Privado</span>
+          </div>
+          <h3 class="text-base font-bold">Registro de Marcos e Aportes</h3>
+          <div id="systemLogsList" class="space-y-2 text-xs max-h-60 overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA 2: MAIN QUESTS -->
+    <div id="tab-quests" class="tab-panel hidden space-y-5">
+      <div class="sys-card border border-cyan-500/30 rounded-2xl p-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <span class="text-xs font-mono uppercase text-cyan-400 font-bold">[ ORÁCULO DE SIMULAÇÃO DO SISTEMA ]</span>
+            <h2 class="text-lg font-bold">Árvore de Evolução: Conquista Imobiliária</h2>
+            <p class="text-xs sys-muted">
+              Ajuste o aporte mensal e a taxa CDI para ver imediatamente quantos meses faltam em cada caminho.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-4 sys-content border rounded-xl p-3.5">
+            <div>
+              <div class="flex justify-between text-xs mb-1 gap-4">
+                <span class="sys-muted">Aporte Mensal:</span>
+                <span id="sliderAporteVal" class="font-mono font-bold text-emerald-400">R$ 1.800 / mês</span>
+              </div>
+              <input id="aporteSlider" type="range" min="600" max="2200" step="100" value="1800" oninput="onOracleSliderChange()" class="w-44 accent-cyan-400 cursor-pointer" />
+              <div class="flex justify-between text-xs sys-muted font-mono">
+                <span>R$ 600</span>
+                <span>R$ 1.000</span>
+                <span>R$ 1.800</span>
+                <span>R$ 2.200</span>
+              </div>
+            </div>
+
+            <div class="border-l border-slate-700/60 pl-4">
+              <label class="block text-xs sys-muted mb-1">Taxa CDI (% a.a.):</label>
+              <input id="cdiInputOracle" type="number" step="0.25" min="6" max="20" value="13.65" onchange="onCdiRateChange()" class="w-24 sys-card border rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-cyan-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="questsGridContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+    <!-- ABA 3: INVENTÁRIO DE CONTAS -->
+    <div id="tab-inventario" class="tab-panel hidden space-y-4">
+      <div class="sys-card border rounded-2xl p-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
+          <div>
+            <span class="text-xs font-mono uppercase text-cyan-400 font-bold">[ INVENTÁRIO DE EQUIPAMENTOS FINANCEIROS ]</span>
+            <h2 class="text-lg font-bold">Suas Contas e Limites de CDI</h2>
+            <p class="text-xs sys-muted">
+              Clique em <strong>"✏️ Editar"</strong> ou <strong>"+ Somar Aporte"</strong> em qualquer conta para atualizar seu saldo real no Cofre Privado.
+            </p>
+          </div>
+          <div id="guaranteeSummaryBox" class="px-3 py-1.5 rounded-xl sys-content border text-xs font-mono"></div>
+        </div>
+
+        <div id="inventoryGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3.5"></div>
+      </div>
+    </div>
+
+    <!-- ABA 4: MARCOS DE TEMPO, QUESTS MENSAIS E EVENTOS -->
+    <div id="tab-tempo" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div class="lg:col-span-6 sys-card border rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <span class="text-xs font-mono uppercase text-emerald-400 font-bold">[ DAILY / MONTHLY QUESTS ]</span>
+            <h2 class="text-lg font-bold">Missões de Manutenção de Buffs</h2>
+            <p class="text-xs sys-muted">
+              Marque as missões concluídas no mês para garantir que as taxas especiais do CDI continuem ativas.
+            </p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span id="questCompletionBadge" class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold"></span>
+            <button onclick="resetMonthlyQuests()" class="px-2.5 py-1 rounded-lg sys-content border text-xs sys-muted hover:text-white cursor-pointer" title="Desmarcar todas para iniciar um novo mês">
+              🔄 Novo Mês
+            </button>
+          </div>
+        </div>
+
+        <div id="monthlyQuestsList" class="space-y-2.5"></div>
+      </div>
+
+      <div class="lg:col-span-6 space-y-5">
+        <div class="sys-card border rounded-2xl p-5 space-y-3.5">
+          <span class="text-xs font-mono uppercase text-amber-400 font-bold">[ EVENTOS DE MUNDO & BOSS TIMERS ]</span>
+          <h3 class="text-base font-bold">Linha do Tempo de Eventos Críticos</h3>
+          <div id="worldEventsContainer" class="space-y-3 text-xs"></div>
+        </div>
+
+        <div class="sys-card border rounded-2xl p-5 space-y-3">
+          <span class="text-xs font-mono uppercase text-purple-400 font-bold">[ PURIFICAÇÃO DE IMPOSTO DE RENDA • CDB 1.086 DIAS ]</span>
+          <h3 class="text-base font-bold">Marcos de Tempo da Tabela Regressiva</h3>
+          <p class="text-xs sys-muted">
+            Em CDBs de longo prazo (1.086 dias) com liquidez diária, o tempo reduz automaticamente a alíquota de IR sobre os rendimentos:
+          </p>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+            <div class="sys-content border border-emerald-500/40 rounded-xl p-2.5 text-center">
+              <div class="font-mono font-bold text-emerald-400">30 Dias</div>
+              <div class="font-semibold mt-0.5">IOF Zerado</div>
+              <div class="sys-muted mt-0.5">Imunidade IOF</div>
+            </div>
+            <div class="sys-content border border-cyan-500/40 rounded-xl p-2.5 text-center">
+              <div class="font-mono font-bold text-cyan-400">180 Dias</div>
+              <div class="font-semibold mt-0.5">IR cai p/ 20%</div>
+              <div class="sys-muted mt-0.5">+2,5% lucro líq.</div>
+            </div>
+            <div class="sys-content border border-purple-500/40 rounded-xl p-2.5 text-center">
+              <div class="font-mono font-bold text-purple-400">360 Dias</div>
+              <div class="font-semibold mt-0.5">IR cai p/ 17,5%</div>
+              <div class="sys-muted mt-0.5">+5,0% lucro líq.</div>
+            </div>
+            <div class="sys-content border border-amber-500/40 rounded-xl p-2.5 text-center">
+              <div class="font-mono font-bold text-amber-400">720 Dias</div>
+              <div class="font-semibold mt-0.5">IR Mínimo 15%</div>
+              <div class="sys-muted mt-0.5">Purificação Total</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ABA 5: ANÁLISE SEMANAL DA SITUAÇÃO GERAL -->
+    <div id="tab-analise" class="tab-panel hidden space-y-5">
+      <div class="sys-card border border-amber-500/40 rounded-2xl p-5 space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-700/60 pb-4">
+          <div>
+            <span class="text-xs font-mono uppercase text-amber-400 font-bold">[ PERGAMINHO DO ORÁCULO • BOLETIM TÁTICO SEMANAL ]</span>
+            <h2 class="text-lg font-bold">Análise Geral da Situação Patrimonial & Roteiro da Semana</h2>
+            <p class="text-xs sys-muted">
+              Gerado em tempo real a partir do seu Cofre Privado e atualizado toda <strong>sexta-feira às 18:00</strong> pela Automação do Antigravity.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="weeklyAuditTimestamp" class="px-3 py-1.5 rounded-xl sys-content border text-xs font-mono text-amber-300">
+              Última Auditoria: --
+            </span>
+            <button onclick="generateSnapshotLog()" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition cursor-pointer">
+              ⚡ Registrar Fechamento da Semana
+            </button>
+          </div>
+        </div>
+
+        <div id="weeklyReportContent" class="grid grid-cols-1 lg:grid-cols-12 gap-5"></div>
+      </div>
+    </div>
+
+    <!-- ABA 6: SIMULADOR DE ARBITRAGEM MCMV VS. CDI (CICLOS HISTÓRICOS & CUSTOS OCULTOS) -->
+    <div id="tab-arbitragem" class="tab-panel hidden space-y-5">
+      <div class="sys-card border border-emerald-500/40 rounded-2xl p-5 space-y-5">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-700/60 pb-4">
+          <div class="space-y-1">
+            <span class="text-xs font-mono uppercase text-emerald-400 font-bold">[ LABORATÓRIO DE ARBITRAGEM • MCMV VS. RENDA FIXA CDI ]</span>
+            <h2 class="text-lg font-bold">Amortizar na Caixa vs. Quitar de Uma Vez vs. Manter no CDB</h2>
+            <p class="text-xs sys-muted">
+              Simulação completa incluindo <strong>TR (que zera quando Selic &le; 8,5%)</strong>, <strong>Seguros MIP + DFI</strong>, <strong>Taxa Caixa</strong>, <strong>queda da oferta dos CDBs</strong> e <strong>pedágio de renovação de IR a cada 3 anos</strong>.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="fetchLiveCdiBrasilApi()" id="btnFetchBcbCdi" class="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-bold text-xs transition cursor-pointer">
+              🔄 Puxar CDI Oficial (Banco Central)
+            </button>
+          </div>
+        </div>
+
+        <!-- Botões de Cenários Rápidos (Ciclos Históricos) -->
+        <div class="space-y-2">
+          <div class="text-xs font-mono uppercase sys-muted font-bold">Cenários Rápidos de Ciclo Econômico:</div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="setArbPreset('hoje')" class="px-3 py-1.5 rounded-xl sys-content border hover:border-cyan-400 text-xs font-semibold cursor-pointer transition">
+              🔥 1. Cenário Atual (CDI 13,65% • CDB 105%)
+            </button>
+            <button onclick="setArbPreset('ondas')" class="px-3 py-1.5 rounded-xl sys-content border hover:border-emerald-400 text-xs font-semibold cursor-pointer transition text-emerald-300">
+              🌊 2. Ciclo Histórico em Ondas (13% ➔ 7% ➔ 9,7% • CDB 102%)
+            </button>
+            <button onclick="setArbPreset('neutro')" class="px-3 py-1.5 rounded-xl sys-content border hover:border-amber-400 text-xs font-semibold cursor-pointer transition">
+              📉 3. Equilíbrio Focus (CDI 9,50% • Oferta cai p/ 100% CDI)
+            </button>
+            <button onclick="setArbPreset('baixo')" class="px-3 py-1.5 rounded-xl sys-content border hover:border-rose-400 text-xs font-semibold cursor-pointer transition text-amber-300">
+              ❄️ 4. Queda Forte (CDI 6,50% • Oferta 100% CDI • TR Zero)
+            </button>
+          </div>
+        </div>
+
+        <!-- Painel de Parâmetros Ajustáveis -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sys-content border rounded-2xl p-4 text-xs">
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="sys-muted font-semibold">Dívida Financiada Caixa:</span>
+              <span id="arbDebtLabel" class="font-mono font-bold text-white">R$ 130.000</span>
+            </div>
+            <input id="arbDebtInput" type="range" min="80000" max="160000" step="5000" value="130000" oninput="renderArbitrageSimulator()" class="w-full accent-cyan-400 cursor-pointer" />
+            <div class="flex justify-between sys-muted font-mono mt-0.5"><span>R$ 80k</span><span>R$ 130k</span><span>R$ 160k</span></div>
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="sys-muted font-semibold">Aporte Extra Mensal (p/ Amortizar ou CDB):</span>
+              <span id="arbExtraLabel" class="font-mono font-bold text-emerald-400">R$ 1.000 / mês</span>
+            </div>
+            <input id="arbExtraInput" type="range" min="300" max="2500" step="100" value="1000" oninput="renderArbitrageSimulator()" class="w-full accent-emerald-400 cursor-pointer" />
+            <div class="flex justify-between sys-muted font-mono mt-0.5"><span>R$ 300</span><span>R$ 1.000</span><span>R$ 2.500</span></div>
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="sys-muted font-semibold">Taxa Nominal MCMV + Seguros/Taxas:</span>
+              <span id="arbMcmvLabel" class="font-mono font-bold text-amber-400">5,00% a.a. + R$ 63/mês</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mt-1">
+              <div>
+                <label class="block sys-muted mb-0.5">Juros Nominal (%):</label>
+                <input id="arbMcmvRateInput" type="number" step="0.1" min="4.0" max="8.0" value="5.00" onchange="renderArbitrageSimulator()" class="w-full sys-card border rounded-lg px-2 py-1 font-mono font-bold text-white" />
+              </div>
+              <div>
+                <label class="block sys-muted mb-0.5">MIP+DFI+Taxa (R$):</label>
+                <input id="arbMcmvInsInput" type="number" step="5" min="0" max="150" value="63" onchange="renderArbitrageSimulator()" class="w-full sys-card border rounded-lg px-2 py-1 font-mono font-bold text-white" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="sys-muted font-semibold">Taxa CDI Simulada (% ao ano):</span>
+              <span id="arbCdiLabel" class="font-mono font-bold text-cyan-400">13,65% a.a.</span>
+            </div>
+            <input id="arbCdiInput" type="range" min="5.0" max="15.0" step="0.25" value="13.65" oninput="onArbManualChange()" class="w-full accent-cyan-400 cursor-pointer" />
+            <div class="flex justify-between sys-muted font-mono mt-0.5"><span>5,0%</span><span>8,5% (TR=0)</span><span>15,0%</span></div>
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="sys-muted font-semibold">Oferta Média Futura do CDB (% do CDI):</span>
+              <span id="arbCdbPctLabel" class="font-mono font-bold text-purple-400">105% do CDI</span>
+            </div>
+            <input id="arbCdbPctInput" type="range" min="95" max="115" step="1" value="105" oninput="onArbManualChange()" class="w-full accent-purple-400 cursor-pointer" />
+            <div class="flex justify-between sys-muted font-mono mt-0.5"><span>95%</span><span>100% (Bancão)</span><span>115%</span></div>
+          </div>
+
+          <div class="flex flex-col justify-center space-y-2 pt-1">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input id="arbWaveModeCheck" type="checkbox" onchange="renderArbitrageSimulator()" class="accent-emerald-400 w-4 h-4" />
+              <span><strong>Simular Ciclo em Ondas</strong> (CDI variando entre 13%, 7% e 9,7%)</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input id="arbRolloverTaxCheck" type="checkbox" checked onchange="renderArbitrageSimulator()" class="accent-amber-400 w-4 h-4" />
+              <span><strong>Pedágio de Renovação CDB</strong> (IR de 15% cobrado a cada 3 anos)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Bússola de Veredito em Tempo Real -->
+        <div id="arbVerdictBanner" class="rounded-2xl p-4 border"></div>
+
+        <!-- Cards Comparativos das 3 Estratégias -->
+        <div id="arbStrategiesGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
+
+        <!-- Tabela da Verdade de Sensibilidade (13,65% até 6,00%) -->
+        <div class="sys-content border rounded-2xl p-4 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span class="text-xs font-mono uppercase text-cyan-400 font-bold">[ TABELA DA VERDADE • SENSIBILIDADE AOS CICLOS DA SELIC ]</span>
+              <h3 class="text-sm font-bold">Custo Real da Caixa (c/ TR e Seguros) vs. CDB (caindo p/ 100% CDI)</h3>
+            </div>
+            <span class="text-xs font-mono sys-muted">Gatilho de Quitação: CDI &le; ~7,2% a.a.</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-slate-700 text-slate-300 font-mono">
+                  <th class="py-2 pr-3">Taxa CDI</th>
+                  <th class="py-2 px-3">TR Estimada</th>
+                  <th class="py-2 px-3">Custo Real Caixa (CET+TR)</th>
+                  <th class="py-2 px-3">CDB 105% Líq.</th>
+                  <th class="py-2 px-3">CDB 100% Líq.</th>
+                  <th class="py-2 pl-3">Veredito Tático</th>
+                </tr>
+              </thead>
+              <tbody id="arbSensitivityTableBody" class="divide-y divide-slate-800 font-mono"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'isekai_sistema_patrimonio_v2_privado';
+    const TOKEN_STORAGE_KEY = 'isekai_gh_token';
+    // Repositório 100% PRIVADO onde residem os dados reais
+    const GH_VAULT_REPO = 'manuelsilva012-bot/isekai-cofre-privado';
+    const GH_FILE_PATH = 'dados_sistema.json';
+
+    // Estado inicial público 100% VAZIO (Nenhum dado pessoal ou saldo no código público!)
+    const EMPTY_LOCKED_STATE = {
+      playerName: 'Jogador',
+      playerClass: '🔒 Cofre Privado',
+      cdiAnnual: 13.65,
+      irAverage: 17.5,
+      aporteMensal: 1800,
+      incluir13o: true,
+      lastUpdated: '--',
+      lastWeeklyAudit: '--',
+      accounts: [],
+      buffLadder: [],
+      shortMilestones: [],
+      mainQuests: [],
+      quests: [],
+      worldEvents: [],
+      logs: [],
+      weeklyAudits: []
+    };
+
+    let state = JSON.parse(JSON.stringify(EMPTY_LOCKED_STATE));
+    let isVaultUnlocked = false;
+    let ghFileSha = null;
+    let liveFarmValue = 15.8842;
+
+    function formatBRL(val) {
+      return 'R$ ' + Number(val || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function todayBR() {
+      const d = new Date();
+      return d.toLocaleDateString('pt-BR');
+    }
+
+    function utf8ToBase64(str) {
+      return btoa(unescape(encodeURIComponent(str)));
+    }
+
+    function base64ToUtf8(b64) {
+      return decodeURIComponent(escape(atob(b64.replace(/\s/g, ''))));
+    }
+
+    function checkUrlHashToken() {
+      if (window.location.hash && window.location.hash.includes('gh_key=')) {
+        const params = new URLSearchParams(window.location.hash.slice(1));
+        const key = params.get('gh_key');
+        if (key) {
+          localStorage.setItem(TOKEN_STORAGE_KEY, key.trim());
+          history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      }
+    }
+
+    function setVaultUnlockedUI(unlocked) {
+      isVaultUnlocked = unlocked;
+      const overlay = document.getElementById('vaultLockOverlay');
+      const mainContainer = document.getElementById('dashboardMainContainer');
+      if (unlocked) {
+        overlay.classList.add('hidden');
+        mainContainer.classList.remove('blur-md', 'pointer-events-none');
+      } else {
+        overlay.classList.remove('hidden');
+        mainContainer.classList.add('blur-md', 'pointer-events-none');
+      }
+    }
+
+    async function unlockWithToken() {
+      const input = document.getElementById('lockScreenTokenInput');
+      const errEl = document.getElementById('lockScreenErrorMsg');
+      const btn = document.getElementById('btnUnlockVault');
+      const val = input.value.trim();
+      if (!val) {
+        errEl.textContent = 'Cole sua chave gho_... antes de continuar.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      errEl.classList.add('hidden');
+      btn.textContent = '⏳ Descriptografando Cofre Privado...';
+      localStorage.setItem(TOKEN_STORAGE_KEY, val);
+      const ok = await loadState();
+      btn.textContent = '🔓 Destrancar Cofre Privado';
+      if (!ok) {
+        errEl.textContent = 'Chave inválida ou sem acesso ao cofre privado (isekai-cofre-privado).';
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    function lockVaultSession() {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+      state = JSON.parse(JSON.stringify(EMPTY_LOCKED_STATE));
+      closeCloudModal();
+      setVaultUnlockedUI(false);
+    }
+
+    async function loadState() {
+      checkUrlHashToken();
+
+      // 1. Tenta carregar do Cofre Privado no GitHub (exige Token válido)
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (token) {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${GH_VAULT_REPO}/contents/${GH_FILE_PATH}?t=${Date.now()}`, {
+            headers: {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': `Bearer ${token}`
+            },
+            cache: 'no-store'
+          });
+          if (res.ok) {
+            const meta = await res.json();
+            ghFileSha = meta.sha;
+            const decoded = JSON.parse(base64ToUtf8(meta.content));
+            if (decoded && Array.isArray(decoded.accounts)) {
+              state = decoded;
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+              setVaultUnlockedUI(true);
+              setSyncBadge('🔒 Cofre Privado Conectado (100% Seguro)');
+              renderAll();
+              return true;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Tenta carregar do servidor local Python (/api/state), se estiver rodando no PC do usuário
+      try {
+        const res = await fetch('/api/state', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.accounts)) {
+            state = data;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            setVaultUnlockedUI(true);
+            setSyncBadge('🟢 Cofre Local Conectado');
+            renderAll();
+            return true;
+          }
+        }
+      } catch (_) {}
+
+      // 3. Se não tem Token válido nem Servidor Local, mantém o Cofre Trancado!
+      setVaultUnlockedUI(false);
+      setSyncBadge('🔒 Cofre Trancado');
+      return false;
+    }
+
+    async function saveState() {
+      if (!isVaultUnlocked) return;
+      state.lastUpdated = todayBR();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+      // Tenta salvar no servidor local se existir
+      try {
+        fetch('/api/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state)
+        }).catch(() => {});
+      } catch (_) {}
+
+      // Salva no Cofre Privado do GitHub
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (token) {
+        setSyncBadge('⏳ Gravando no Cofre Privado...');
+        try {
+          if (!ghFileSha) {
+            const getRes = await fetch(`https://api.github.com/repos/${GH_VAULT_REPO}/contents/${GH_FILE_PATH}`, {
+              headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+            });
+            if (getRes.ok) {
+              const getMeta = await getRes.json();
+              ghFileSha = getMeta.sha;
+            }
+          }
+          const putRes = await fetch(`https://api.github.com/repos/${GH_VAULT_REPO}/contents/${GH_FILE_PATH}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github+json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: `Atualização de patrimônio via Dashboard Blindado (${state.lastUpdated})`,
+              content: utf8ToBase64(JSON.stringify(state, null, 2)),
+              sha: ghFileSha
+            })
+          });
+          if (putRes.ok) {
+            const putData = await putRes.json();
+            if (putData && putData.content) {
+              ghFileSha = putData.content.sha;
+            }
+            setSyncBadge('🔒 Salvo no Cofre Privado!');
+            return;
+          } else {
+            setSyncBadge('⚠️ Erro ao gravar no Cofre (Verifique Chave)');
+            return;
+          }
+        } catch (_) {
+          setSyncBadge('⚠️ Sem conexão c/ Cofre (Salvo Local)');
+          return;
+        }
+      }
+    }
+
+    function openCloudModal() {
+      document.getElementById('cloudTokenInput').value = localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+      document.getElementById('cloudModal').classList.remove('hidden');
+    }
+
+    function closeCloudModal() {
+      document.getElementById('cloudModal').classList.add('hidden');
+    }
+
+    async function saveCloudToken() {
+      const val = document.getElementById('cloudTokenInput').value.trim();
+      if (val) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, val);
+        closeCloudModal();
+        await loadState();
+      } else {
+        lockVaultSession();
+      }
+    }
+
+    async function pullFromGitHubCloud() {
+      closeCloudModal();
+      setSyncBadge('⏳ Recarregando Cofre Privado...');
+      await loadState();
+    }
+
+    function setSyncBadge(text) {
+      const el = document.getElementById('syncStatusBadge');
+      if (el) el.textContent = text;
+    }
+
+    function getTotalPatrimony() {
+      return (state.accounts || []).reduce((acc, item) => acc + Number(item.balance), 0);
+    }
+
+    function getPortfolioMetrics() {
+      const cdiAnnual = Number(state.cdiAnnual || 13.65) / 100;
+      const cdiMonthly = Math.pow(1 + cdiAnnual, 1 / 12) - 1;
+      const netFactor = 1 - (Number(state.irAverage || 17.5) / 100);
+      let totalNet = 0;
+      let weightedCdiSum = 0;
+      const total = getTotalPatrimony();
+
+      for (const acc of (state.accounts || [])) {
+        const bal = Number(acc.balance);
+        const cap = Number(acc.cap);
+        const inCap = Math.min(bal, cap);
+        const excess = Math.max(0, bal - cap);
+        const gross = inCap * cdiMonthly * (acc.rateGood / 100) + excess * cdiMonthly * (acc.rateExcess / 100);
+        totalNet += gross * netFactor;
+        weightedCdiSum += inCap * acc.rateGood + excess * acc.rateExcess;
+      }
+      const avgCdiPct = total > 0 ? (weightedCdiSum / total) : 100;
+      return { totalNet, avgCdiPct };
+    }
+
+    function renderAll() {
+      if (!isVaultUnlocked) return;
+
+      const total = getTotalPatrimony();
+      const level = Math.floor(total / 1000);
+      const xpInLevel = total - (level * 1000);
+      const xpPercent = Math.min(100, (xpInLevel / 1000) * 100);
+      const xpRemaining = 1000 - xpInLevel;
+
+      const { totalNet: monthlyNet, avgCdiPct } = getPortfolioMetrics();
+      const dailyNet = monthlyNet / 21;
+      const hourlyNet = dailyNet / 24;
+      const daysForNextLevel = dailyNet > 0 ? Math.max(1, Math.ceil(xpRemaining / dailyNet)) : 0;
+
+      document.getElementById('playerNameDisplay').textContent = state.playerName || 'Jogador';
+      document.getElementById('playerClassBadge').textContent = state.playerClass || 'Classe: Soberano';
+      document.getElementById('playerLevelText').textContent = `NÍVEL ${level}`;
+      document.getElementById('nextLevelBadge').textContent = `Rumo ao Lv. ${level + 1} (R$ ${((level + 1) * 1000).toLocaleString('pt-BR')})`;
+      document.getElementById('currentLevelXp').textContent = xpInLevel.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('xpPercentText').textContent = `(${xpPercent.toFixed(1)}%)`;
+      document.getElementById('xpProgressBar').style.width = `${xpPercent}%`;
+      document.getElementById('xpRemainingText').innerHTML = `🎯 Faltam apenas <strong class="text-white font-mono">${formatBRL(xpRemaining)}</strong> para o Nível ${level + 1}!`;
+      document.getElementById('xpTimeEstimateText').innerHTML = `⏳ Só com os juros diários, você sobe para o Nível ${level + 1} em <strong class="text-emerald-400">~${daysForNextLevel} dias úteis</strong>.`;
+
+      document.getElementById('totalPatrimonyDisplay').textContent = formatBRL(total);
+      document.getElementById('avgCdiPercentBadge').textContent = `${avgCdiPct.toFixed(1)}% CDI méd.`;
+      document.getElementById('cdiHeaderBadge').textContent = `CDI ${Number(state.cdiAnnual).toFixed(2).replace('.', ',')}%`;
+
+      const to50k = Math.max(0, 50000 - total);
+      document.getElementById('to50kDisplay').textContent = to50k > 0 ? formatBRL(to50k) : 'META DE R$ 50K BATIDA! 🏆';
+      document.getElementById('monthlyYieldDisplay').innerHTML = `+${formatBRL(monthlyNet)}<span class="text-xs font-normal sys-muted">/mês</span>`;
+      document.getElementById('dailyYieldDisplay').textContent = `+${formatBRL(dailyNet)}`;
+      document.getElementById('hourlyYieldDisplay').textContent = `+${formatBRL(hourlyNet)}/hora`;
+
+      document.getElementById('aporteSlider').value = state.aporteMensal || 1800;
+      document.getElementById('cdiInputOracle').value = state.cdiAnnual || 13.65;
+
+      renderSystemAlertBanner();
+      renderBuffLadder(monthlyNet);
+      renderShortMilestones(total);
+      renderLogs();
+      updateQuestsView();
+      renderInventory();
+      renderMonthlyQuests();
+      renderWorldEvents();
+      renderWeeklyReport();
+      renderArbitrageSimulator();
+    }
+
+    function renderSystemAlertBanner() {
+      const debuffAccounts = (state.accounts || []).filter(a => a.balance > a.cap && a.rateExcess < 100);
+      const alertBox = document.getElementById('systemAlertBox');
+      const tag = document.getElementById('systemAlertTag');
+      const title = document.getElementById('systemAlertTitle');
+      const desc = document.getElementById('systemAlertDesc');
+      const btn = document.getElementById('btnFixDebuff');
+
+      if (debuffAccounts.length > 0) {
+        const acc = debuffAccounts[0];
+        const excess = acc.balance - acc.cap;
+        alertBox.className = 'sys-card border-l-4 border-amber-500 border rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 system-glow';
+        tag.className = 'px-2.5 py-1 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-mono text-xs font-bold uppercase shrink-0 mt-0.5';
+        tag.textContent = '[SISTEMA • DEBUFF]';
+        title.innerHTML = `Debuff Detectado em [${acc.name}]: Excedente de <span class="text-amber-400 font-mono font-bold">${formatBRL(excess)}</span> rendendo apenas ${acc.rateExcess}% do CDI!`;
+        desc.textContent = 'Clique no botão ao lado para transferir automaticamente o excedente para a sua conta de 105% do CDI.';
+        btn.classList.remove('hidden');
+      } else {
+        const mpLivre = (state.accounts || []).find(a => a.id === 'mp_conta_livre');
+        const freeMpSpace = mpLivre ? Math.max(0, mpLivre.cap - mpLivre.balance) : 0;
+        alertBox.className = 'sys-card border-l-4 border-emerald-400 border rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4';
+        tag.className = 'px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono text-xs font-bold uppercase shrink-0 mt-0.5';
+        tag.textContent = '[SISTEMA • OTIMIZADO]';
+        title.innerHTML = `✅ <span class="text-emerald-400">Zero Penalidades Ativas!</span> Todos os seus equipamentos estão operando em faixa nobre de CDI.`;
+        desc.textContent = freeMpSpace > 0
+          ? `Próximo aporte recomendado: enviar ${formatBRL(freeMpSpace)} para completar o teto de 105% CDI e o restante para o CDB c/ FGC.`
+          : `Teto operacional completo! Direcione 100% dos próximos aportes para o CDB 105% CDI c/ FGC.`;
+        btn.classList.add('hidden');
+      }
+    }
+
+    function renderBuffLadder(monthlyNet) {
+      const container = document.getElementById('buffLadderContainer');
+      const ladder = state.buffLadder || [];
+      let nextFound = false;
+      container.innerHTML = ladder.map(buff => {
+        const unlocked = monthlyNet >= buff.cost;
+        const pct = Math.min(100, (monthlyNet / buff.cost) * 100);
+        let isNext = false;
+        if (!unlocked && !nextFound) {
+          isNext = true;
+          nextFound = true;
+        }
+
+        const borderClass = unlocked
+          ? 'border-emerald-500/40 bg-emerald-500/5'
+          : isNext
+            ? 'border-cyan-400 bg-cyan-500/10'
+            : 'sys-content opacity-75';
+
+        const statusBadge = unlocked
+          ? `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold">✅ ATIVO</span>`
+          : isNext
+            ? `<span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono text-xs font-bold">🎯 PRÓXIMO (${pct.toFixed(0)}%)</span>`
+            : `<span class="px-2 py-0.5 rounded bg-black/30 sys-muted font-mono text-xs">${pct.toFixed(0)}%</span>`;
+
+        return `
+          <div class="border ${borderClass} rounded-xl p-3 transition">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="font-bold text-sm flex items-center gap-2">
+                <span>${buff.title}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-xs font-semibold sys-muted">Alvo: ${formatBRL(buff.cost)}/mês</span>
+                ${statusBadge}
+              </div>
+            </div>
+            <p class="text-xs sys-muted mt-1">${buff.desc}</p>
+            ${!unlocked ? `
+              <div class="w-full h-1.5 bg-black/40 rounded-full overflow-hidden mt-2">
+                <div class="h-full bg-cyan-400 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderShortMilestones(total) {
+      const milestones = state.shortMilestones || [];
+      document.getElementById('shortMilestonesList').innerHTML = milestones.map(m => {
+        const done = total >= m.val;
+        const diff = Math.max(0, m.val - total);
+        const pct = Math.min(100, (total / m.val) * 100);
+        return `
+          <div class="sys-content border ${done ? 'border-emerald-500/40' : ''} rounded-xl p-2.5">
+            <div class="flex justify-between items-center font-semibold">
+              <span class="${done ? 'text-emerald-400' : ''}">${done ? '✅ ' : '🎯 '}${m.label}</span>
+              <span class="font-mono">${formatBRL(m.val)}</span>
+            </div>
+            <div class="flex justify-between sys-muted mt-1">
+              <span>Progresso: <strong class="font-mono text-white">${pct.toFixed(1)}%</strong></span>
+              <span>${done ? '<strong class="text-emerald-400">CONQUISTADO!</strong>' : `Faltam <strong class="font-mono text-amber-400">${formatBRL(diff)}</strong>`}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('systemLogsList');
+      const logs = state.logs || [];
+      container.innerHTML = logs.map(item => `
+        <div class="sys-content border rounded-xl p-2.5 flex items-start gap-2">
+          <span class="font-mono text-cyan-400 font-bold shrink-0">[${item.date}]</span>
+          <span class="text-slate-200">${item.text}</span>
+        </div>
+      `).join('');
+    }
+
+    function onOracleSliderChange() {
+      state.aporteMensal = Number(document.getElementById('aporteSlider').value);
+      updateQuestsView();
+      saveState();
+    }
+
+    function onCdiRateChange() {
+      const val = Number(document.getElementById('cdiInputOracle').value);
+      if (val > 0) {
+        state.cdiAnnual = val;
+        renderAll();
+        saveState();
+      }
+    }
+
+    function updateQuestsView() {
+      const total = getTotalPatrimony();
+      const aporte = Number(document.getElementById('aporteSlider').value);
+      document.getElementById('sliderAporteVal').textContent = `R$ ${aporte.toLocaleString('pt-BR')} / mês`;
+
+      const quests = state.mainQuests || [];
+      const cdiAnnual = Number(state.cdiAnnual || 13.65) / 100;
+      const netMonthlyRate = (Math.pow(1 + cdiAnnual, 1 / 12) - 1) * 1.07 * (1 - 0.175);
+      const container = document.getElementById('questsGridContainer');
+
+      container.innerHTML = quests.map(q => {
+        const done = total >= q.target;
+        const pct = Math.min(100, (total / q.target) * 100);
+        const missing = Math.max(0, q.target - total);
+
+        let months = 0;
+        let simBalance = total;
+        while (simBalance < q.target && months < 120) {
+          months++;
+          const bonus13 = (months === 1 || months === 13 || months === 25) ? 1100 : 0;
+          simBalance = simBalance * (1 + netMonthlyRate) + aporte + bonus13;
+        }
+
+        const monthNames = ['Out/26','Nov/26','Dez/26','Jan/27','Fev/27','Mar/27','Abr/27','Mai/27','Jun/27','Jul/27','Ago/27','Set/27','Out/27','Nov/27','Dez/27','Jan/28','Fev/28','Mar/28','Abr/28','Mai/28','Jun/28','Jul/28','Ago/28','Set/28','Out/28','Nov/28','Dez/28','Jan/29','Fev/29','Mar/29','Abr/29','Mai/29','Jun/29','Jul/29','Ago/29','Set/29','Out/29','Nov/29','Dez/29'];
+        const etaText = done ? 'DESBLOQUEADA HOJE!' : `${monthNames[Math.min(months, monthNames.length - 1)]} (~${months} ${months === 1 ? 'mês' : 'meses'})`;
+
+        return `
+          <div class="sys-card border ${done ? 'border-emerald-400' : ''} rounded-2xl p-4 flex flex-col justify-between space-y-3">
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded text-xs font-mono font-bold ${done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-cyan-500/15 text-cyan-300'}">
+                  ${q.tag}
+                </span>
+                <span class="font-mono text-xs sys-muted">Alvo: <strong class="text-white">${formatBRL(q.target)}</strong></span>
+              </div>
+              <h3 class="font-bold text-sm mt-1">${q.code}</h3>
+              <p class="text-xs sys-muted mt-1">${q.desc}</p>
+            </div>
+
+            <div class="space-y-1.5 pt-2 border-t border-slate-700/60">
+              <div class="flex justify-between text-xs font-mono">
+                <span>Progresso: <strong>${pct.toFixed(1)}%</strong></span>
+                <span class="${done ? 'text-emerald-400 font-bold' : 'text-amber-400'}">
+                  ${done ? '🏆 100% COMPLETA' : `Faltam ${formatBRL(missing)}`}
+                </span>
+              </div>
+              <div class="w-full h-3 bg-black/40 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                <div class="h-full rounded-full ${done ? 'bg-emerald-400' : 'bg-gradient-to-r from-cyan-500 to-amber-400'} transition-all duration-500" style="width: ${pct}%"></div>
+              </div>
+              <div class="flex justify-between text-xs pt-1">
+                <span class="sys-muted">Previsão com este aporte:</span>
+                <span class="font-mono font-bold text-cyan-400">${etaText}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderInventory() {
+      const accs = state.accounts || [];
+      const fgcTotal = accs
+        .filter(a => (a.guarantee || '').toUpperCase().includes('FGC'))
+        .reduce((s, a) => s + Number(a.balance), 0);
+      const tpTotal = getTotalPatrimony() - fgcTotal;
+      document.getElementById('guaranteeSummaryBox').innerHTML =
+        `Garantia FGC: <strong class="text-emerald-400">${formatBRL(fgcTotal)}</strong> • Títulos Públicos: <strong class="text-cyan-400">${formatBRL(tpTotal)}</strong>`;
+
+      const container = document.getElementById('inventoryGrid');
+      container.innerHTML = accs.map(acc => {
+        const hasDebuff = acc.balance > acc.cap && acc.rateExcess < 100;
+        const pct = Math.min(100, (acc.balance / acc.cap) * 100);
+        const excess = Math.max(0, acc.balance - acc.cap);
+
+        return `
+          <div class="sys-content border ${hasDebuff ? 'border-amber-500 danger-glow' : ''} rounded-xl p-4 space-y-2.5">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">${acc.icon}</span>
+                <div>
+                  <div class="font-bold text-sm">${acc.name}</div>
+                  <span class="text-xs sys-muted">Titular: ${acc.owner} • ${acc.guarantee}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded font-mono text-xs font-bold ${hasDebuff ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300'}">
+                  ${acc.rateGood}% CDI
+                </span>
+                <button onclick="openDepositModal('${acc.id}', 'set')" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold cursor-pointer transition">
+                  ✏️ Editar
+                </button>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-baseline pt-1">
+              <span class="font-mono text-lg font-extrabold">${formatBRL(acc.balance)}</span>
+              <span class="font-mono text-xs sys-muted">Teto Turbo: ${formatBRL(acc.cap)}</span>
+            </div>
+
+            <div class="w-full h-2 bg-black/40 rounded-full overflow-hidden">
+              <div class="h-full ${hasDebuff ? 'bg-amber-400' : 'bg-cyan-400'} rounded-full" style="width: ${pct}%"></div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs pt-1">
+              ${
+                hasDebuff
+                  ? `<span class="text-amber-400 font-semibold">⚠️ Excedente de ${formatBRL(excess)} a ${acc.rateExcess}% CDI</span>`
+                  : excess > 0
+                    ? `<span class="text-cyan-300">Excedente de ${formatBRL(excess)} a ${acc.rateExcess}% CDI</span>`
+                    : `<span class="text-emerald-400">✔️ Eficiência Máxima Ativa</span>`
+              }
+              <button onclick="openDepositModal('${acc.id}', 'add')" class="text-xs font-mono text-emerald-400 hover:underline cursor-pointer">
+                + Somar Aporte
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMonthlyQuests() {
+      const quests = state.quests || [];
+      const doneCount = quests.filter(q => q.done).length;
+      document.getElementById('questCompletionBadge').textContent = `${doneCount} / ${quests.length} Concluídas`;
+
+      document.getElementById('monthlyQuestsList').innerHTML = quests.map((q, idx) => `
+        <div onclick="toggleQuest(${idx})" class="sys-content border ${q.done ? 'border-emerald-500/40 opacity-85' : 'hover:border-cyan-400/50'} rounded-xl p-3 flex items-start gap-3 cursor-pointer transition">
+          <input type="checkbox" ${q.done ? 'checked' : ''} class="mt-1 accent-emerald-400 w-4 h-4 pointer-events-none" />
+          <div class="flex-1">
+            <div class="font-semibold text-sm ${q.done ? 'line-through sys-muted' : ''}">
+              ${q.title}
+            </div>
+            <div class="text-xs text-cyan-400 font-mono mt-0.5">
+              Recompensa: ${q.reward}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderWorldEvents() {
+      const container = document.getElementById('worldEventsContainer');
+      if (!container) return;
+      const events = state.worldEvents || [];
+      const colorMap = {
+        emerald: { border: 'border-emerald-400', text: 'text-emerald-400' },
+        amber: { border: 'border-amber-400', text: 'text-amber-400' },
+        rose: { border: 'border-rose-500', text: 'text-rose-400' }
+      };
+      container.innerHTML = events.map(ev => {
+        const c = colorMap[ev.color] || colorMap.emerald;
+        return `
+          <div class="sys-content border-l-4 ${c.border} border rounded-xl p-3">
+            <div class="flex justify-between font-bold text-sm">
+              <span class="${c.text}">${ev.title}</span>
+              <span class="font-mono">${ev.dateLabel}</span>
+            </div>
+            <p class="sys-muted mt-1">${ev.desc}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderWeeklyReport() {
+      const container = document.getElementById('weeklyReportContent');
+      if (!container) return;
+
+      const total = getTotalPatrimony();
+      const level = Math.floor(total / 1000);
+      const xp = total - (level * 1000);
+      const xpRem = 1000 - xp;
+      const { totalNet: monthlyNet, avgCdiPct } = getPortfolioMetrics();
+      const dailyNet = monthlyNet / 21;
+      const daysToNextLevel = dailyNet > 0 ? Math.max(1, Math.ceil(xpRem / dailyNet)) : 0;
+
+      const stampEl = document.getElementById('weeklyAuditTimestamp');
+      if (stampEl) {
+        stampEl.textContent = `Última Sincronização: ${state.lastWeeklyAudit || state.lastUpdated || todayBR()}`;
+      }
+
+      const debuffAccounts = (state.accounts || []).filter(a => a.balance > a.cap && a.rateExcess < 100);
+      const mpLivre = (state.accounts || []).find(a => a.id === 'mp_conta_livre');
+      const freeMp = mpLivre ? Math.max(0, mpLivre.cap - mpLivre.balance) : 0;
+      const pendingQuests = (state.quests || []).filter(q => !q.done);
+
+      const debuffHtml = debuffAccounts.length > 0
+        ? debuffAccounts.map(a => {
+            const exc = a.balance - a.cap;
+            return `<div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-xs flex items-center justify-between gap-2">
+              <div>
+                <span class="font-bold text-amber-400">⚠️ DEBUFF ATIVO EM [${a.name}]:</span>
+                <span class="text-white font-mono font-bold">${formatBRL(exc)}</span> rendendo apenas <span class="text-amber-300 font-mono">${a.rateExcess}% CDI</span>.
+              </div>
+              <button onclick="fixAllDebuffs()" class="px-2.5 py-1 rounded-lg bg-amber-500 text-black font-bold cursor-pointer shrink-0">Expurgar Agora</button>
+            </div>`;
+          }).join('')
+        : `<div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/40 text-xs text-emerald-300 font-semibold">
+            ✅ Zero Debuffs Ativos! Todos os bolsos estão operando na faixa máxima do CDI (${avgCdiPct.toFixed(2)}% CDI médio).
+          </div>`;
+
+      const allocationHtml = freeMp > 0
+        ? `1️⃣ Enviar os primeiros <strong class="text-cyan-300 font-mono">${formatBRL(freeMp)}</strong> para a <strong>Conta Livre MP (105% CDI)</strong> até cravar o teto de R$ 20.000,00.<br/>
+           2️⃣ Todo o valor acima disso deve ir direto para o <strong>CDB Sofisa Direto (105% CDI c/ FGC e IR regressivo de 3 anos)</strong>.`
+        : `1️⃣ Sua Conta Livre MP já atingiu 100% do teto!<br/>
+           2️⃣ Direcione <strong>100% do próximo aporte</strong> diretamente para o <strong>CDB Sofisa Direto (105% CDI c/ FGC)</strong>.`;
+
+      const weeklyHistory = Array.isArray(state.weeklyAudits) ? state.weeklyAudits : [];
+      const historyHtml = weeklyHistory.length > 0
+        ? weeklyHistory.slice(0, 6).map(w => `
+            <div class="sys-content border rounded-xl p-2.5 flex items-center justify-between text-xs">
+              <div>
+                <span class="font-mono text-amber-400 font-bold">[${w.date}]</span>
+                <span class="font-semibold ml-1">Lv. ${w.level} • ${formatBRL(w.total)}</span>
+              </div>
+              <div class="font-mono text-emerald-400">+${formatBRL(w.monthlyNet)}/mês (${w.avgCdi}% CDI)</div>
+            </div>
+          `).join('')
+        : `<div class="text-xs sys-muted">Nenhum fechamento semanal arquivado ainda.</div>`;
+
+      const mainQuests = state.mainQuests || [];
+
+      container.innerHTML = `
+        <div class="lg:col-span-7 space-y-4">
+          <div class="sys-content border rounded-xl p-4 space-y-2">
+            <div class="text-xs font-mono uppercase text-cyan-400 font-bold">1. Diagnóstico de Nível e Velocidade Passiva</div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div class="p-3 rounded-xl sys-card border">
+                <div class="text-xs sys-muted">Nível & Patrimônio</div>
+                <div class="text-base font-extrabold font-mono text-cyan-400 mt-0.5">Lv. ${level} (${formatBRL(total)})</div>
+                <div class="text-xs sys-muted mt-0.5">Faltam ${formatBRL(xpRem)} p/ Lv. ${level + 1}</div>
+              </div>
+              <div class="p-3 rounded-xl sys-card border">
+                <div class="text-xs sys-muted">Renda Passiva Líquida</div>
+                <div class="text-base font-extrabold font-mono text-emerald-400 mt-0.5">+${formatBRL(monthlyNet)}/mês</div>
+                <div class="text-xs sys-muted mt-0.5">+${formatBRL(dailyNet)} por dia útil</div>
+              </div>
+              <div class="p-3 rounded-xl sys-card border">
+                <div class="text-xs sys-muted">Ritmo de Level Up</div>
+                <div class="text-base font-extrabold font-mono text-amber-400 mt-0.5">~${daysToNextLevel} dias úteis</div>
+                <div class="text-xs sys-muted mt-0.5">Só com juros automáticos</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sys-content border rounded-xl p-4 space-y-2.5">
+            <div class="text-xs font-mono uppercase text-amber-400 font-bold">2. Auditoria de Tetos CDI & Plano do Próximo Aporte</div>
+            ${debuffHtml}
+            <div class="p-3 rounded-xl sys-card border text-xs leading-relaxed">
+              <div class="font-bold text-cyan-400 mb-1">🧭 Ordem Tática para o Próximo Salário / Aporte:</div>
+              ${allocationHtml}
+            </div>
+          </div>
+
+          <div class="sys-content border rounded-xl p-4 space-y-2">
+            <div class="text-xs font-mono uppercase text-emerald-400 font-bold">3. Status das Missões de Manutenção do Mês</div>
+            <div class="text-xs">
+              ${
+                pendingQuests.length === 0
+                  ? `<span class="text-emerald-400 font-bold">✅ Todas as ${(state.quests || []).length} missões mensais estão concluídas!</span>`
+                  : `<span class="text-amber-400 font-bold">⚠️ Atenção: ${pendingQuests.length} missão(ões) pendente(s) neste mês:</span>
+                     <ul class="list-disc list-inside mt-1 space-y-1 sys-muted">
+                       ${pendingQuests.map(q => `<li><strong class="text-white">${q.title}</strong> (${q.reward})</li>`).join('')}
+                     </ul>`
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 space-y-4">
+          <div class="sys-content border rounded-xl p-4 space-y-2.5">
+            <div class="text-xs font-mono uppercase text-purple-400 font-bold">4. Radar das Main Quests</div>
+            <div class="space-y-2 text-xs">
+              ${mainQuests.map(q => {
+                const pct = Math.min(100, (total / q.target) * 100);
+                const rem = Math.max(0, q.target - total);
+                return `
+                  <div class="p-2.5 rounded-xl sys-card border">
+                    <div class="flex justify-between font-semibold">
+                      <span class="${rem === 0 ? 'text-emerald-400' : 'text-white'}">${q.title || q.code}</span>
+                      <span class="font-mono ${rem === 0 ? 'text-emerald-400' : 'text-cyan-400'}">${pct.toFixed(1)}%</span>
+                    </div>
+                    <div class="flex justify-between sys-muted font-mono mt-0.5">
+                      <span>Alvo: ${formatBRL(q.target)}</span>
+                      <span>${rem === 0 ? '✅ PRONTA!' : 'Faltam ' + formatBRL(rem)}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="sys-content border rounded-xl p-4 space-y-2">
+            <div class="text-xs font-mono uppercase text-amber-400 font-bold">5. Histórico de Fechamentos Semanais</div>
+            <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+              ${historyHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function generateSnapshotLog() {
+      const total = getTotalPatrimony();
+      const level = Math.floor(total / 1000);
+      const { totalNet, avgCdiPct } = getPortfolioMetrics();
+      const dateStr = todayBR();
+
+      if (!Array.isArray(state.weeklyAudits)) {
+        state.weeklyAudits = [];
+      }
+      state.lastWeeklyAudit = dateStr;
+      state.weeklyAudits.unshift({
+        date: dateStr,
+        level,
+        total: +total.toFixed(2),
+        monthlyNet: +totalNet.toFixed(2),
+        avgCdi: +avgCdiPct.toFixed(2)
+      });
+      state.logs.unshift({
+        date: dateStr,
+        text: `Boletim Semanal Arquivado: Nível ${level} (${formatBRL(total)}) • Renda Passiva +${formatBRL(totalNet)}/mês.`
+      });
+      renderAll();
+      saveState();
+    }
+
+    function setArbPreset(preset) {
+      const cdiEl = document.getElementById('arbCdiInput');
+      const pctEl = document.getElementById('arbCdbPctInput');
+      const waveEl = document.getElementById('arbWaveModeCheck');
+      if (preset === 'hoje') {
+        cdiEl.value = state.cdiAnnual || 13.65;
+        pctEl.value = 105;
+        waveEl.checked = false;
+      } else if (preset === 'ondas') {
+        cdiEl.value = 9.75;
+        pctEl.value = 102;
+        waveEl.checked = true;
+      } else if (preset === 'neutro') {
+        cdiEl.value = 9.50;
+        pctEl.value = 100;
+        waveEl.checked = false;
+      } else if (preset === 'baixo') {
+        cdiEl.value = 6.50;
+        pctEl.value = 100;
+        waveEl.checked = false;
+      }
+      renderArbitrageSimulator();
+    }
+
+    function onArbManualChange() {
+      document.getElementById('arbWaveModeCheck').checked = false;
+      renderArbitrageSimulator();
+    }
+
+    async function fetchLiveCdiBrasilApi() {
+      const btn = document.getElementById('btnFetchBcbCdi');
+      if (btn) btn.textContent = '⏳ Consultando Banco Central...';
+      try {
+        const res = await fetch('https://brasilapi.com.br/api/taxas/v1/CDI', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const valor = parseFloat(data.valor);
+          if (!isNaN(valor) && valor > 0) {
+            state.cdiAnnual = valor;
+            document.getElementById('arbCdiInput').value = valor;
+            document.getElementById('arbWaveModeCheck').checked = false;
+            renderAll();
+            saveState();
+            if (btn) btn.textContent = `✅ CDI Oficial BCB: ${valor.toFixed(2).replace('.', ',')}%`;
+            return;
+          }
+        }
+      } catch (_) {}
+      if (btn) btn.textContent = '🔄 Puxar CDI Oficial (Banco Central)';
+    }
+
+    function renderArbitrageSimulator() {
+      const debtInput = document.getElementById('arbDebtInput');
+      if (!debtInput) return;
+
+      const debtInit = Number(debtInput.value || 130000);
+      const extraMonthly = Number(document.getElementById('arbExtraInput').value || 1000);
+      const nominalMcmv = Number(document.getElementById('arbMcmvRateInput').value || 5.0);
+      const monthlyInsFee = Number(document.getElementById('arbMcmvInsInput').value || 63);
+      const baseCdi = Number(document.getElementById('arbCdiInput').value || 13.65);
+      const cdbPct = Number(document.getElementById('arbCdbPctInput').value || 105);
+      const waveMode = document.getElementById('arbWaveModeCheck').checked;
+      const rolloverTax = document.getElementById('arbRolloverTaxCheck').checked;
+
+      document.getElementById('arbDebtLabel').textContent = formatBRL(debtInit);
+      document.getElementById('arbExtraLabel').textContent = `${formatBRL(extraMonthly)} / mês`;
+      document.getElementById('arbMcmvLabel').textContent = `${nominalMcmv.toFixed(2).replace('.', ',')}% a.a. + ${formatBRL(monthlyInsFee)}/mês`;
+      document.getElementById('arbCdiLabel').textContent = waveMode
+        ? 'Ciclo Ondas (13% ➔ 7% ➔ 9,7%)'
+        : `${baseCdi.toFixed(2).replace('.', ',')}% a.a.`;
+      document.getElementById('arbCdbPctLabel').textContent = `${cdbPct}% do CDI`;
+
+      // Cálculo do Custo Real Atual (CET + TR) vs CDB Líquido Atual
+      const effMcmvAnnual = (Math.pow(1 + (nominalMcmv / 100) / 12, 12) - 1) * 100;
+      const currentCdiForHeadline = waveMode ? 9.75 : baseCdi;
+      const trAnnualPct = currentCdiForHeadline <= 8.5 ? 0 : (currentCdiForHeadline - 8.5) * 0.22;
+      const insAnnualPct = ((monthlyInsFee * 12) / debtInit) * 100;
+      const realCaixaAnnualPct = effMcmvAnnual + trAnnualPct + insAnnualPct;
+
+      // Pedágio de renovação de IR a cada 3 anos reduz ~0.35% da taxa efetiva composta
+      const effectiveIrFactor = rolloverTax ? (1 - 0.162) : (1 - 0.15);
+      const cdbNetAnnualPct = currentCdiForHeadline * (cdbPct / 100) * effectiveIrFactor;
+      const spreadPct = cdbNetAnnualPct - realCaixaAnnualPct;
+      const spreadPer10kMonth = (10000 * (spreadPct / 100)) / 12;
+
+      const verdictBox = document.getElementById('arbVerdictBanner');
+      if (spreadPct > 0.6) {
+        verdictBox.className = 'rounded-2xl p-4 border border-emerald-500/50 bg-emerald-500/10 space-y-2';
+        verdictBox.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold uppercase">
+              🟢 VEREDITO DO ORÁCULO: ACUMULAR NO CDB (NÃO AMORTIZAR AGORA)
+            </span>
+            <span class="font-mono text-xs font-bold text-emerald-400">
+              Vantagem Líquida do CDB: +${spreadPct.toFixed(2).replace('.', ',')}% ao ano (+${formatBRL(spreadPer10kMonth)}/mês a cada R$ 10k)
+            </span>
+          </div>
+          <p class="text-xs text-slate-200 leading-relaxed">
+            Mesmo somando <strong>Juros Efetivos (${effMcmvAnnual.toFixed(2)}%) + TR (${trAnnualPct.toFixed(2)}%) + Seguros MIP/DFI e Taxa Caixa (${insAnnualPct.toFixed(2)}%) = ${realCaixaAnnualPct.toFixed(2)}% a.a.</strong>, o seu CDB rende <strong>${cdbNetAnnualPct.toFixed(2)}% a.a. líquidos</strong>. Guardar no CDB faz você alcançar o valor de quitação mais rápido e lucrar a diferença!
+          </p>
+        `;
+      } else if (spreadPct >= -0.2) {
+        verdictBox.className = 'rounded-2xl p-4 border border-amber-500/50 bg-amber-500/10 space-y-2';
+        verdictBox.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 font-mono text-xs font-bold uppercase">
+              🟡 VEREDITO DO ORÁCULO: ZONA DE EMPATE TÉCNICO (GATILHO PRÓXIMO!)
+            </span>
+            <span class="font-mono text-xs font-bold text-amber-300">
+              Diferença Líquida: ${spreadPct >= 0 ? '+' : ''}${spreadPct.toFixed(2).replace('.', ',')}% ao ano
+            </span>
+          </div>
+          <p class="text-xs text-slate-200 leading-relaxed">
+            Custo Real da Caixa (<strong>${realCaixaAnnualPct.toFixed(2)}% a.a.</strong> c/ TR zerada) está praticamente empatado com o CDB líquido (<strong>${cdbNetAnnualPct.toFixed(2)}% a.a.</strong>). Nesta faixa, já vale a pena aproveitar o vencimento do seu CDB para <strong>quitar a dívida de uma vez só (ou amortizar no PRAZO)</strong> e eliminar os seguros fixos!
+          </p>
+        `;
+      } else {
+        verdictBox.className = 'rounded-2xl p-4 border border-rose-500/50 bg-rose-500/10 space-y-2';
+        verdictBox.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="px-2.5 py-1 rounded bg-rose-500/20 text-rose-300 font-mono text-xs font-bold uppercase">
+              🔴 VEREDITO DO ORÁCULO: DISPARAR QUITAÇÃO / AMORTIZAR NO PRAZO!
+            </span>
+            <span class="font-mono text-xs font-bold text-rose-400">
+              Caixa custa ${Math.abs(spreadPct).toFixed(2).replace('.', ',')}% a.a. a mais que o CDB líquido!
+            </span>
+          </div>
+          <p class="text-xs text-slate-200 leading-relaxed">
+            Com o CDI neste patamar e oferta do CDB em ${cdbPct}%, o ganho líquido do CDB (<strong>${cdbNetAnnualPct.toFixed(2)}% a.a.</strong>) perde para o Custo Real da Caixa (<strong>${realCaixaAnnualPct.toFixed(2)}% a.a.</strong> devido aos seguros DFI/MIP e taxas). Hora de usar o saldo acumulado para <strong>quitar ou amortizar no PRAZO</strong>!
+          </p>
+        `;
+      }
+
+      // Simulação mês a mês (180 meses = 15 anos) para as 3 Estratégias
+      const nMonths = 360;
+      const rDebtM = (nominalMcmv / 100) / 12;
+      const pmtBase = debtInit * (rDebtM * Math.pow(1 + rDebtM, nMonths)) / (Math.pow(1 + rDebtM, nMonths) - 1);
+
+      function getMonthRates(m) {
+        let cdiAA = baseCdi / 100;
+        let pctCdb = cdbPct / 100;
+        if (waveMode) {
+          if (m <= 12) { cdiAA = 0.1300; pctCdb = Math.max(pctCdb, 1.05); }
+          else if (m <= 24) { cdiAA = 0.1075; }
+          else if (m <= 36) { cdiAA = 0.0900; }
+          else if (m <= 60) { cdiAA = 0.0700; pctCdb = 1.00; }
+          else if (m <= 96) { cdiAA = 0.0975; pctCdb = 1.00; }
+          else if (m <= 120) { cdiAA = 0.1200; pctCdb = 1.02; }
+          else { cdiAA = 0.0950; pctCdb = 1.00; }
+        }
+        const trM = cdiAA <= 0.085 ? 0 : ((cdiAA - 0.085) * 0.22) / 12;
+        const cdbGrossM = Math.pow(1 + cdiAA, 1 / 12) - 1;
+        const cdbNetM = cdbGrossM * pctCdb * effectiveIrFactor;
+        return { trM, cdbNetM };
+      }
+
+      // Estratégia 1: Amortizar todo mês na Caixa
+      let d1 = debtInit, cdb1 = 0, mPay1 = 360, net1_10y = 0, net1_15y = 0;
+      // Estratégia 2: Juntar no CDB e Quitar 100% de uma vez quando CDB >= Dívida
+      let d2 = debtInit, cdb2 = 0, mPay2 = 360, net2_10y = 0, net2_15y = 0;
+      // Estratégia 3: Manter Financiamento e acumular tudo no CDB
+      let d3 = debtInit, cdb3 = 0, mCross3 = 360, net3_10y = 0, net3_15y = 0;
+
+      for (let m = 1; m <= 180; m++) {
+        const { trM, cdbNetM } = getMonthRates(m);
+
+        // Strat 1
+        if (d1 > 0) {
+          d1 = d1 * (1 + trM);
+          const int1 = d1 * rDebtM;
+          const amort1 = Math.max(0, pmtBase - int1);
+          d1 = Math.max(0, d1 - amort1 - extraMonthly);
+          if (d1 === 0 && mPay1 === 360) mPay1 = m;
+        } else {
+          cdb1 = cdb1 * (1 + cdbNetM) + extraMonthly + pmtBase + monthlyInsFee;
+        }
+
+        // Strat 2
+        if (d2 > 0) {
+          d2 = d2 * (1 + trM);
+          const int2 = d2 * rDebtM;
+          const amort2 = Math.max(0, pmtBase - int2);
+          d2 = Math.max(0, d2 - amort2);
+          cdb2 = cdb2 * (1 + cdbNetM) + extraMonthly;
+          if (cdb2 >= d2) {
+            cdb2 -= d2;
+            d2 = 0;
+            if (mPay2 === 360) mPay2 = m;
+          }
+        } else {
+          cdb2 = cdb2 * (1 + cdbNetM) + extraMonthly + pmtBase + monthlyInsFee;
+        }
+
+        // Strat 3
+        d3 = d3 * (1 + trM);
+        const int3 = d3 * rDebtM;
+        const amort3 = Math.max(0, pmtBase - int3);
+        d3 = Math.max(0, d3 - amort3);
+        cdb3 = cdb3 * (1 + cdbNetM) + extraMonthly;
+        if (cdb3 >= d3 && mCross3 === 360) mCross3 = m;
+
+        if (m === 120) {
+          net1_10y = cdb1 - d1;
+          net2_10y = cdb2 - d2;
+          net3_10y = cdb3 - d3;
+        }
+        if (m === 180) {
+          net1_15y = cdb1 - d1;
+          net2_15y = cdb2 - d2;
+          net3_15y = cdb3 - d3;
+        }
+      }
+
+      const max15y = Math.max(net1_15y, net2_15y, net3_15y);
+      const stratCards = [
+        {
+          title: '1. Amortizar Mês a Mês na Caixa',
+          subtitle: 'Usa o aporte extra todo mês p/ abater prazo',
+          payoffText: mPay1 < 360 ? `Mês ${mPay1} (${(mPay1 / 12).toFixed(1)} anos)` : 'Mais de 15 anos',
+          net10: net1_10y,
+          net15: net1_15y,
+          winner: net1_15y === max15y,
+          note: 'Elimina seguros/taxas aos poucos, mas abre mão dos juros compostos do CDB e fica sem liquidez durante anos.'
+        },
+        {
+          title: '2. Juntar no CDB e Quitar de Uma Vez',
+          subtitle: 'Acumula no CDB e liquida 100% quando empatar',
+          payoffText: mPay2 < 360 ? `Mês ${mPay2} (${(mPay2 / 12).toFixed(1)} anos)` : 'Mais de 15 anos',
+          net10: net2_10y,
+          net15: net2_15y,
+          winner: net2_15y === max15y,
+          note: 'Ideal se o CDI cair abaixo de ~7,2% a.a. no futuro: você acumula mais rápido na alta e quita tudo na baixa!'
+        },
+        {
+          title: '3. Manter Financiamento + Tudo no CDB',
+          subtitle: 'Os juros do CDB pagam a Caixa sozinhos',
+          payoffText: mCross3 < 360 ? `CDB supera dívida no Mês ${mCross3}` : 'Mais de 15 anos',
+          net10: net3_10y,
+          net15: net3_15y,
+          winner: net3_15y === max15y,
+          note: 'Mantém 100% da liquidez na sua mão + preserva o Seguro MIP (se houver sinistro, a Caixa quita a casa e o CDB fica intacto).'
+        }
+      ];
+
+      document.getElementById('arbStrategiesGrid').innerHTML = stratCards.map(sc => `
+        <div class="sys-content border ${sc.winner ? 'border-emerald-400 gold-glow' : ''} rounded-2xl p-4 flex flex-col justify-between space-y-3">
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="px-2 py-0.5 rounded text-xs font-mono font-bold ${sc.winner ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/60 sys-muted'}">
+                ${sc.winner ? '🏆 CAMPEÃ NESTE CENÁRIO' : 'COMPARATIVO'}
+              </span>
+            </div>
+            <h3 class="font-bold text-sm mt-1">${sc.title}</h3>
+            <p class="text-xs sys-muted">${sc.subtitle}</p>
+          </div>
+
+          <div class="space-y-1.5 text-xs font-mono pt-2 border-t border-slate-700/60">
+            <div class="flex justify-between">
+              <span class="sys-muted">Marco de Quitação:</span>
+              <span class="font-bold text-cyan-400">${sc.payoffText}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="sys-muted">Saldo Livre (Ano 10):</span>
+              <span class="font-bold text-white">${formatBRL(sc.net10)}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="sys-muted">Saldo Livre (Ano 15):</span>
+              <span class="font-extrabold text-sm ${sc.winner ? 'text-emerald-400' : 'text-amber-300'}">${formatBRL(sc.net15)}</span>
+            </div>
+          </div>
+
+          <p class="text-xs sys-muted leading-relaxed pt-1 border-t border-slate-800">${sc.note}</p>
+        </div>
+      `).join('');
+
+      // Tabela da Verdade de Sensibilidade
+      const sampleCdis = [13.65, 11.00, 9.50, 8.50, 7.50, 6.50];
+      document.getElementById('arbSensitivityTableBody').innerHTML = sampleCdis.map(cdiVal => {
+        const trA = cdiVal <= 8.5 ? 0 : (cdiVal - 8.5) * 0.22;
+        const caixaTotal = effMcmvAnnual + trA + insAnnualPct;
+        const cdb105 = cdiVal * 1.05 * effectiveIrFactor;
+        const cdb100 = cdiVal * 1.00 * effectiveIrFactor;
+        const diff100 = cdb100 - caixaTotal;
+        let statusHtml = '';
+        if (diff100 > 0.6) {
+          statusHtml = `<span class="text-emerald-400 font-bold">🟢 Acumular no CDB (+${diff100.toFixed(2)}%)</span>`;
+        } else if (diff100 >= -0.15) {
+          statusHtml = `<span class="text-amber-400 font-bold">🟡 Empate / Gatilho de Quitação</span>`;
+        } else {
+          statusHtml = `<span class="text-rose-400 font-bold">🔴 Quitar / Amortizar Caixa</span>`;
+        }
+        return `
+          <tr class="hover:bg-white/5">
+            <td class="py-2 pr-3 font-bold text-cyan-300">${cdiVal.toFixed(2).replace('.', ',')}% a.a.</td>
+            <td class="py-2 px-3 ${trA === 0 ? 'text-emerald-400' : 'text-amber-300'}">${trA === 0 ? '0,00% (Isenta)' : '+' + trA.toFixed(2).replace('.', ',') + '%'}</td>
+            <td class="py-2 px-3 font-bold text-white">${caixaTotal.toFixed(2).replace('.', ',')}% a.a.</td>
+            <td class="py-2 px-3 text-emerald-300">${cdb105.toFixed(2).replace('.', ',')}% a.a.</td>
+            <td class="py-2 px-3 text-purple-300 font-bold">${cdb100.toFixed(2).replace('.', ',')}% a.a.</td>
+            <td class="py-2 pl-3">${statusHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleQuest(idx) {
+      state.quests[idx].done = !state.quests[idx].done;
+      renderMonthlyQuests();
+      renderWeeklyReport();
+      saveState();
+    }
+
+    function resetMonthlyQuests() {
+      (state.quests || []).forEach(q => { q.done = false; });
+      state.logs.unshift({
+        date: todayBR(),
+        text: 'Novo ciclo mensal iniciado: Missões de manutenção de Buffs resetadas.'
+      });
+      renderAll();
+      saveState();
+    }
+
+    function fixAllDebuffs() {
+      const mpLivre = (state.accounts || []).find(a => a.id === 'mp_conta_livre');
+      const sofisa = (state.accounts || []).find(a => a.id === 'sofisa_cdb');
+      let totalMoved = 0;
+
+      for (const acc of (state.accounts || [])) {
+        if (acc.balance > acc.cap && acc.rateExcess < 100) {
+          const excess = +(acc.balance - acc.cap).toFixed(2);
+          acc.balance = acc.cap;
+          totalMoved += excess;
+
+          if (mpLivre && mpLivre.balance < mpLivre.cap) {
+            const space = +(mpLivre.cap - mpLivre.balance).toFixed(2);
+            const toMp = Math.min(excess, space);
+            mpLivre.balance = +(mpLivre.balance + toMp).toFixed(2);
+            const rem = +(excess - toMp).toFixed(2);
+            if (rem > 0 && sofisa) {
+              sofisa.balance = +(sofisa.balance + rem).toFixed(2);
+            }
+          } else if (sofisa) {
+            sofisa.balance = +(sofisa.balance + excess).toFixed(2);
+          }
+        }
+      }
+
+      if (totalMoved > 0) {
+        const q4 = (state.quests || []).find(q => q.id === 'q4');
+        if (q4) q4.done = true;
+        state.logs.unshift({
+          date: todayBR(),
+          text: `Expurgo de Debuff: ${formatBRL(totalMoved)} transferidos da faixa de 80% CDI para 105% CDI.`
+        });
+        renderAll();
+        saveState();
+      }
+    }
+
+    function openDepositModal(accountId, opType) {
+      const accs = state.accounts || [];
+      if (accs.length === 0) return;
+      const sel = document.getElementById('modalAccountSelect');
+      sel.innerHTML = accs.map(a => `<option value="${a.id}">${a.icon} ${a.name} (${formatBRL(a.balance)})</option>`).join('');
+      sel.value = accountId || accs[0].id;
+      document.getElementById('modalOpType').value = opType || 'add';
+      document.getElementById('modalNoteInput').value = '';
+      onModalAccountChange();
+      document.getElementById('depositModal').classList.remove('hidden');
+    }
+
+    function onModalAccountChange() {
+      const accId = document.getElementById('modalAccountSelect').value;
+      const opType = document.getElementById('modalOpType').value;
+      const acc = (state.accounts || []).find(a => a.id === accId);
+      if (!acc) return;
+
+      document.getElementById('modalRateGoodInput').value = acc.rateGood;
+      document.getElementById('modalCapInput').value = acc.cap;
+      document.getElementById('modalAccountHint').textContent =
+        `Saldo Atual: ${formatBRL(acc.balance)} • Teto Turbo: ${formatBRL(acc.cap)} (${acc.rateGood}% CDI)`;
+
+      const label = document.getElementById('modalAmountLabel');
+      const input = document.getElementById('modalAmountInput');
+      if (opType === 'set') {
+        label.textContent = 'Novo Saldo Exato (R$):';
+        input.value = acc.balance.toFixed(2);
+      } else {
+        label.textContent = 'Valor a Somar (R$):';
+        input.value = '';
+      }
+    }
+
+    function closeDepositModal() {
+      document.getElementById('depositModal').classList.add('hidden');
+    }
+
+    function confirmAccountUpdate() {
+      const accId = document.getElementById('modalAccountSelect').value;
+      const opType = document.getElementById('modalOpType').value;
+      const rawVal = parseFloat(document.getElementById('modalAmountInput').value);
+      const newRate = parseFloat(document.getElementById('modalRateGoodInput').value);
+      const newCap = parseFloat(document.getElementById('modalCapInput').value);
+      const customNote = document.getElementById('modalNoteInput').value.trim();
+
+      const acc = (state.accounts || []).find(a => a.id === accId);
+      if (!acc) return;
+
+      const oldTotal = getTotalPatrimony();
+      const oldLevel = Math.floor(oldTotal / 1000);
+
+      if (!isNaN(newRate) && newRate > 0) acc.rateGood = newRate;
+      if (!isNaN(newCap) && newCap > 0) acc.cap = newCap;
+
+      if (!isNaN(rawVal)) {
+        if (opType === 'set') {
+          const diff = rawVal - acc.balance;
+          acc.balance = Math.max(0, +rawVal.toFixed(2));
+          state.logs.unshift({
+            date: todayBR(),
+            text: customNote || `Saldo atualizado em [${acc.name}]: ${formatBRL(acc.balance)} (${diff >= 0 ? '+' : ''}${formatBRL(diff)}).`
+          });
+        } else if (rawVal !== 0) {
+          acc.balance = Math.max(0, +(acc.balance + rawVal).toFixed(2));
+          state.logs.unshift({
+            date: todayBR(),
+            text: customNote || `Aporte/Rendimento de +${formatBRL(rawVal)} registrado em [${acc.name}].`
+          });
+        }
+      }
+
+      closeDepositModal();
+      const newTotal = getTotalPatrimony();
+      const newLevel = Math.floor(newTotal / 1000);
+
+      renderAll();
+      saveState();
+
+      if (newLevel > oldLevel) {
+        const { totalNet } = getPortfolioMetrics();
+        document.getElementById('levelUpSubtitle').textContent = `Nível ${oldLevel} ➔ Nível ${newLevel} Alcançado!`;
+        document.getElementById('levelUpGold').textContent = formatBRL(newTotal);
+        document.getElementById('levelUpYield').textContent = `+${formatBRL(totalNet)} / mês`;
+        document.getElementById('levelUpModal').classList.remove('hidden');
+      }
+    }
+
+    function closeLevelUpModal() {
+      document.getElementById('levelUpModal').classList.add('hidden');
+    }
+
+    function exportBackupJSON() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_sistema_isekai_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importBackupJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && Array.isArray(imported.accounts)) {
+            state = imported;
+            setVaultUnlockedUI(true);
+            renderAll();
+            saveState();
+          }
+        } catch (_) {}
+      };
+      reader.readAsText(file);
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.className = 'tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer sys-card sys-muted border';
+      });
+      document.getElementById(`tabBtn-${tabId}`).className = 'tab-btn px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer bg-cyan-500 text-black';
+    }
+
+    setInterval(() => {
+      if (!isVaultUnlocked) return;
+      liveFarmValue += 0.0003;
+      const el = document.getElementById('liveFarmTicker');
+      if (el) {
+        el.textContent = '+R$ ' + liveFarmValue.toFixed(4).replace('.', ',');
+      }
+    }, 1200);
+
+    loadState();
+  </script>
+</body>
+</html>
